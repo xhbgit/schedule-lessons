@@ -2,16 +2,23 @@ package com.xhb.utils;
 
 import com.xhb.model.ClassInfo;
 import com.xhb.model.Lesson;
+import com.xhb.model.Schedule;
 import com.xhb.model.Teacher;
+import org.apache.poi.hssf.usermodel.HSSFCellStyle;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.lang.System.out;
 
 /**
  * @author: xhb
@@ -20,6 +27,27 @@ import java.util.Map;
  * @version: 1.0
  */
 public class PoiUtils {
+
+    private static final String XLS = "xls";
+    private static final String XLSX = "xlsx";
+
+    /**
+     * 根据文件后缀名类型获取对应的工作簿对象
+     * @param inputStream 读取文件的输入流
+     * @param fileType 文件后缀名类型（xls或xlsx）
+     * @return 包含文件数据的工作簿对象
+     * @throws IOException
+     */
+    public static Workbook getWorkbook(InputStream inputStream, String fileType) throws IOException {
+        Workbook workbook = null;
+        if (fileType.equalsIgnoreCase(XLS)) {
+            workbook = new HSSFWorkbook(inputStream);
+        } else if (fileType.equalsIgnoreCase(XLSX)) {
+            workbook = new XSSFWorkbook(inputStream);
+        }
+        return workbook;
+    }
+
     /**
      * @author xhb
      * @date 2023/2/15 22:33
@@ -225,6 +253,120 @@ public class PoiUtils {
     }
 
     public static boolean createSchedule(Map<String, ClassInfo> classInfoMap,String filePath){
+
+        // 生成xlsx的Excel
+        Workbook workbook = new SXSSFWorkbook();
+
+        // 如需生成xls的Excel，请使用下面的工作簿对象，注意后续输出时文件后缀名也需更改为xls
+        //Workbook workbook = new HSSFWorkbook();
+
+
+        for (ClassInfo classInfo : classInfoMap.values()) {
+
+            Schedule schedule = classInfo.getSchedule();
+            // 生成Sheet表
+            Sheet sheet = workbook.createSheet(schedule.getClassName()+"课程表");
+
+            //      设置单元宽度
+            sheet.setDefaultColumnWidth(20 * 256);
+            // ===================================
+            // 创建正文文本格式
+            // ===================================
+            CellStyle textStyle = workbook.createCellStyle();
+
+            // ===================================
+            // 创建字体格式
+            // ===================================
+            Font ztFont = workbook.createFont();
+            ztFont.setItalic(true);                     // 设置字体为斜体字
+            // ztFont.setColor(Font.COLOR_RED);            // 将字体设置为“红色”
+            ztFont.setFontHeightInPoints((short)16);    // 将字体大小设置为18px
+            ztFont.setFontName("华文行楷");             // 将“华文行楷”字体应用到当前单元格上
+            ztFont.setUnderline(Font.U_DOUBLE);         // 添加（Font.U_SINGLE单条下划线/Font.U_DOUBLE双条下划线）
+            // ztFont.setStrikeout(true);                  // 是否添加删除线
+            textStyle.setFont(ztFont);                    // 将字体应用到样式上面
+            // ztCell.setCellStyle(ztStyle);               // 样式应用到该单元格上
+
+
+            //============================
+            //      设置单元内容的对齐方式
+            //============================
+            // 设置单元格内容水平对其方式
+            // HorizontalAlignment.CENTER       居中对齐
+            // HorizontalAlignment.LEFT         左对齐
+            // HorizontalAlignment.RIGHT        右对齐
+            textStyle.setAlignment(HorizontalAlignment.CENTER);
+
+            // 设置单元格内容垂直对其方式
+            // VerticalAlignment.TOP       上对齐
+            // VerticalAlignment.CENTER    中对齐
+            // VerticalAlignment.BOTTOM    下对齐
+            textStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            //============================
+            //        设置单元格边框
+            //============================
+
+            // 设置单元格边框样式
+            // BorderStyle.DOUBLE      双边线
+            // BorderStyle.THIN        细边线
+            // BorderStyle.MEDIUM      中等边线
+            // BorderStyle.DASHED      虚线边线
+            // BorderStyle.HAIR        小圆点虚线边线
+            // BorderStyle.THICK       粗边线
+            textStyle.setBorderBottom(BorderStyle.THIN);
+            textStyle.setBorderTop(BorderStyle.THIN);
+            textStyle.setBorderLeft(BorderStyle.THIN);
+            textStyle.setBorderRight(BorderStyle.THIN);
+
+            // 设置单元格边框颜色
+            // textStyle.setBottomBorderColor(new XSSFColor(java.awt.Color.RED));
+            // textStyle.setTopBorderColor(new XSSFColor(java.awt.Color.GREEN));
+            // textStyle.setLeftBorderColor(new XSSFColor(java.awt.Color.BLUE));
+            // textStyle.setRightBorderColor();
+
+            // ===================================
+
+            // 创建内容
+            Map<String, Lesson[][]> coordinate = schedule.getCoordinate();
+            Lesson[][] workDay = coordinate.get("一至五");
+
+            for (int i = 0; i < workDay.length; i++) {
+                Row row = sheet.createRow(i);
+                float heightInPoints = row.getHeightInPoints();
+                row.setHeight((short)(heightInPoints * 60));
+                for (int j = 0; j < workDay[i].length; j++) {
+                    Lesson lesson = workDay[i][j];
+                    Cell cell = row.createCell(j);
+                    // 样式应用到该单元格上
+                    cell.setCellStyle(textStyle);
+                    if (lesson != null){
+                        cell.setCellValue(lesson.getLsName()+"\n"+lesson.getTeacherName());
+                    }
+                }
+            }
+
+        }
+
+
+        //输出表格文件
+        FileOutputStream out = null ;
+        try {
+            out = new FileOutputStream(filePath);
+            workbook.write(out);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }finally {
+            try {
+                out.close();
+                workbook.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+
+        File file = new File(filePath);
 
 
         return false;
